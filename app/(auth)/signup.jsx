@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, User, Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,9 +15,24 @@ export default function SignupScreen() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSignup = async () => {
+  const handleSignup = useCallback(async () => {
     if (!name || !email || !password) {
       setError('Please fill in all fields');
+      return;
+    }
+    
+    if (name.length < 2) {
+      setError('Name must be at least 2 characters');
+      return;
+    }
+    
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
       return;
     }
     
@@ -28,26 +43,39 @@ export default function SignupScreen() {
       await signup(name, email, password, role);
       router.replace('/(app)');
     } catch (err) {
-      setError('Failed to create account. Please try again.');
+      let errorMessage = 'Failed to create account. Please try again.';
+      if (err.code === 'auth/email-already-in-use') {
+        errorMessage = 'This email is already registered. Please login instead.';
+      } else if (err.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (err.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please use a stronger password.';
+      }
+      setError(errorMessage);
       Alert.alert(
         "Signup Failed", 
-        err.message || "Failed to create account. Please try again.",
+        errorMessage,
         [{ text: "OK" }]
       );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [name, email, password, role, signup, router]);
 
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+      >
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}
+          disabled={isLoading}
         >
           <ArrowLeft size={24} color="#1A1A1A" />
         </TouchableOpacity>
@@ -63,6 +91,7 @@ export default function SignupScreen() {
                 role === 'student' && styles.activeRoleButton
               ]}
               onPress={() => setRole('student')}
+              disabled={isLoading}
             >
               <Text style={[
                 styles.roleText,
@@ -76,6 +105,7 @@ export default function SignupScreen() {
                 role === 'teacher' && styles.activeRoleButton
               ]}
               onPress={() => setRole('teacher')}
+              disabled={isLoading}
             >
               <Text style={[
                 styles.roleText,
@@ -85,17 +115,20 @@ export default function SignupScreen() {
           </View>
           
           <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, error && styles.inputError]}>
               <User size={20} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
                 placeholder="Full Name"
                 value={name}
                 onChangeText={setName}
+                autoCapitalize="words"
+                autoComplete="name"
+                editable={!isLoading}
               />
             </View>
             
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, error && styles.inputError]}>
               <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
@@ -104,10 +137,12 @@ export default function SignupScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                editable={!isLoading}
               />
             </View>
             
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, error && styles.inputError]}>
               <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
@@ -115,10 +150,13 @@ export default function SignupScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoComplete="password"
+                editable={!isLoading}
               />
               <TouchableOpacity 
                 style={styles.eyeIcon}
                 onPress={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
               >
                 {showPassword ? (
                   <EyeOff size={20} color="#9CA3AF" />
@@ -136,14 +174,19 @@ export default function SignupScreen() {
             onPress={handleSignup}
             disabled={isLoading}
           >
-            <Text style={styles.signupButtonText}>
-              {isLoading ? 'Creating Account...' : 'Create Account'}
-            </Text>
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.signupButtonText}>Create Account</Text>
+            )}
           </TouchableOpacity>
           
           <View style={styles.loginContainer}>
             <Text style={styles.loginText}>Already have an account?</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
+            <TouchableOpacity 
+              onPress={() => router.push('/(auth)/login')}
+              disabled={isLoading}
+            >
               <Text style={styles.loginLink}>Login</Text>
             </TouchableOpacity>
           </View>
@@ -155,6 +198,7 @@ export default function SignupScreen() {
             <TouchableOpacity 
               style={styles.demoButton}
               onPress={() => router.push('/(auth)/login')}
+              disabled={isLoading}
             >
               <Text style={styles.demoButtonText}>Go to Login</Text>
             </TouchableOpacity>
@@ -229,6 +273,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 16,
     height: 56,
+  },
+  inputError: {
+    borderColor: '#EF4444',
   },
   inputIcon: {
     marginRight: 12,

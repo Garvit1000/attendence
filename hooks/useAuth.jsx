@@ -33,6 +33,9 @@ export function AuthProvider({ children }) {
             // This case might happen if signup Firestore write failed previously
             console.warn("[Auth State Change] Firestore data NOT FOUND for UID:", firebaseUser.uid);
             setUserData(null); 
+            // Sign out the user if their document doesn't exist
+            await signOut(auth);
+            return;
           }
         } catch (error) {
           // Check for permissions error specifically
@@ -42,6 +45,7 @@ export function AuthProvider({ children }) {
              console.error("[Auth State Change] Error fetching user data from Firestore:", error);
           }
           setUserData(null);
+          return;
         }
         setUser(firebaseUser); // Set the Firebase user object
       } else {
@@ -61,13 +65,27 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  const login = async (email, password) => {
-    console.log("[Login] Attempting login for:", email);
+  const login = async (email, password, role) => {
+    console.log("[Login] Attempting login for:", email, "Role:", role);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log("[Login] Success. User UID:", userCredential.user.uid);
-      // onAuthStateChanged should handle the rest
-      return userCredential.user; 
+      console.log("[Login] Auth success. User UID:", userCredential.user.uid);
+      
+      // Verify user role
+      const userDocRef = doc(db, 'users', userCredential.user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (!userDocSnap.exists()) {
+        throw new Error('User document not found');
+      }
+      
+      const userData = userDocSnap.data();
+      if (userData.role !== role) {
+        await signOut(auth);
+        throw new Error(`Please login as a ${userData.role}`);
+      }
+      
+      return userCredential.user;
     } catch (error) {
       console.error('[Login] Failed:', error.message, error.code);
       throw error; // Rethrow for UI handling
@@ -75,7 +93,7 @@ export function AuthProvider({ children }) {
   };
 
   const signup = async (name, email, password, role) => {
-    console.log("[Signup] Attempting signup for:", email, " Name:", name, " Role:", role);
+    console.log("[Signup] Attempting signup for:", email, "Name:", name, "Role:", role);
     try {
       // 1. Create user in Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -95,16 +113,8 @@ export function AuthProvider({ children }) {
       console.log("[Signup] Attempting to save user data to Firestore path:", userDocRef.path);
       console.log("[Signup] Data to save:", newUser);
       
-      try {
-          await setDoc(userDocRef, newUser);
-          console.log("[Signup] Firestore user data SAVED successfully.");
-      } catch (firestoreError) {
-          console.error("[Signup] FAILED to save user data to Firestore:", firestoreError.message, firestoreError.code);
-          // Optionally: delete the auth user if firestore write fails? (complex recovery)
-          // await firebaseUser.delete(); 
-          // console.log("[Signup] Deleted Auth user due to Firestore failure.");
-          throw new Error("Failed to save user details after signup. " + firestoreError.message); // Throw specific error
-      }
+      await setDoc(userDocRef, newUser);
+      console.log("[Signup] Firestore user data SAVED successfully.");
       
       // 3. Manually set state immediately after successful signup + Firestore write
       console.log("[Signup] Manually setting user state locally.");

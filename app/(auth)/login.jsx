@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
@@ -7,16 +7,26 @@ import { useAuth } from '@/hooks/useAuth';
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState('teacher@example.com'); // Pre-filled for demo
-  const [password, setPassword] = useState('password'); // Pre-filled for demo
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState('teacher');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     if (!email || !password) {
       setError('Please fill in all fields');
+      return;
+    }
+    
+    if (!email.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
       return;
     }
     
@@ -27,26 +37,37 @@ export default function LoginScreen() {
       await login(email, password, role);
       router.replace('/(app)');
     } catch (err) {
-      setError('Invalid email or password');
+      let errorMessage = 'Invalid email or password';
+      if (err.code === 'auth/network-request-failed') {
+        errorMessage = 'Network error. Please check your internet connection.';
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = 'Too many failed attempts. Please try again later.';
+      }
+      setError(errorMessage);
       Alert.alert(
         "Login Failed", 
-        "For demo, use:\nTeacher: teacher@example.com\nStudent: student@example.com\nPassword: password",
+        errorMessage + "\n\nFor demo, use:\nTeacher: teacher@example.com\nStudent: student@example.com\nPassword: password",
         [{ text: "OK" }]
       );
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [email, password, role, login, router]);
 
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+      >
         <TouchableOpacity 
           style={styles.backButton} 
           onPress={() => router.back()}
+          disabled={isLoading}
         >
           <ArrowLeft size={24} color="#1A1A1A" />
         </TouchableOpacity>
@@ -62,6 +83,7 @@ export default function LoginScreen() {
                 role === 'student' && styles.activeRoleButton
               ]}
               onPress={() => setRole('student')}
+              disabled={isLoading}
             >
               <Text style={[
                 styles.roleText,
@@ -75,6 +97,7 @@ export default function LoginScreen() {
                 role === 'teacher' && styles.activeRoleButton
               ]}
               onPress={() => setRole('teacher')}
+              disabled={isLoading}
             >
               <Text style={[
                 styles.roleText,
@@ -84,7 +107,7 @@ export default function LoginScreen() {
           </View>
           
           <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, error && styles.inputError]}>
               <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
@@ -93,10 +116,12 @@ export default function LoginScreen() {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="email"
+                editable={!isLoading}
               />
             </View>
             
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, error && styles.inputError]}>
               <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
@@ -104,10 +129,13 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoComplete="password"
+                editable={!isLoading}
               />
               <TouchableOpacity 
                 style={styles.eyeIcon}
                 onPress={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
               >
                 {showPassword ? (
                   <EyeOff size={20} color="#9CA3AF" />
@@ -119,7 +147,10 @@ export default function LoginScreen() {
             
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             
-            <TouchableOpacity style={styles.forgotPassword}>
+            <TouchableOpacity 
+              style={styles.forgotPassword}
+              disabled={isLoading}
+            >
               <Text style={styles.forgotPasswordText}>Forgot password?</Text>
             </TouchableOpacity>
           </View>
@@ -129,14 +160,19 @@ export default function LoginScreen() {
             onPress={handleLogin}
             disabled={isLoading}
           >
-            <Text style={styles.loginButtonText}>
-              {isLoading ? 'Logging in...' : 'Login'}
-            </Text>
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
           </TouchableOpacity>
           
           <View style={styles.signupContainer}>
             <Text style={styles.signupText}>Don't have an account?</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
+            <TouchableOpacity 
+              onPress={() => router.push('/(auth)/signup')}
+              disabled={isLoading}
+            >
               <Text style={styles.signupLink}>Sign up</Text>
             </TouchableOpacity>
           </View>
@@ -225,6 +261,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 16,
     height: 56,
+  },
+  inputError: {
+    borderColor: '#EF4444',
   },
   inputIcon: {
     marginRight: 12,
