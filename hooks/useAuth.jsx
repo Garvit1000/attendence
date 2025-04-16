@@ -1,166 +1,178 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../config/firebase'; // Import Firebase config
 
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(null); // Firebase user object
+  const [userData, setUserData] = useState(null); // User data from Firestore
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load user from AsyncStorage on app start
-    const loadUser = async () => {
-      try {
-        const userJson = await AsyncStorage.getItem('user');
-        if (userJson) {
-          setUser(JSON.parse(userJson));
+    console.log("Setting up onAuthStateChanged listener...");
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log("[Auth State Change] Started. Firebase User UID:", firebaseUser?.uid);
+      setIsLoading(true); // Set loading true at the start of handling change
+      if (firebaseUser) {
+        console.log("[Auth State Change] User is signed IN. Fetching Firestore data...");
+        const userDocRef = doc(db, 'users', firebaseUser.uid);
+        try {
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const fetchedData = userDocSnap.data();
+            console.log("[Auth State Change] Firestore data FOUND:", fetchedData);
+            setUserData(fetchedData);
+          } else {
+            // This case might happen if signup Firestore write failed previously
+            console.warn("[Auth State Change] Firestore data NOT FOUND for UID:", firebaseUser.uid);
+            setUserData(null); 
+          }
+        } catch (error) {
+          // Check for permissions error specifically
+          if (error.code === 'permission-denied') {
+             console.error("[Auth State Change] Firestore Permission Error: Check Firestore Rules for reading '/users/", firebaseUser.uid, "'", error);
+          } else {
+             console.error("[Auth State Change] Error fetching user data from Firestore:", error);
+          }
+          setUserData(null);
         }
-        
-        // Initialize users array if it doesn't exist
-        const usersJson = await AsyncStorage.getItem('users');
-        if (!usersJson) {
-          // Create some demo users
-          const demoUsers = [
-            {
-              id: '1',
-              name: 'Teacher Demo',
-              email: 'teacher@example.com',
-              password: 'password',
-              role: 'teacher',
-              createdAt: new Date().toISOString(),
-            },
-            {
-              id: '2',
-              name: 'Student Demo',
-              email: 'student@example.com',
-              password: 'password',
-              role: 'student',
-              createdAt: new Date().toISOString(),
-            }
-          ];
-          await AsyncStorage.setItem('users', JSON.stringify(demoUsers));
-        }
-      } catch (error) {
-        console.error('Failed to load user from storage', error);
-      } finally {
-        setIsLoading(false);
+        setUser(firebaseUser); // Set the Firebase user object
+      } else {
+        // User is signed out
+        console.log("[Auth State Change] User is signed OUT.");
+        setUser(null);
+        setUserData(null);
       }
-    };
+      console.log("[Auth State Change] Finished processing. Setting loading to false.");
+      setIsLoading(false);
+    });
 
-    loadUser();
+    // Cleanup subscription on unmount
+    return () => {
+        console.log("Cleaning up onAuthStateChanged listener.");
+        unsubscribe();
+    };
   }, []);
 
-  const login = async (email, password, role) => {
+  const login = async (email, password) => {
+    console.log("[Login] Attempting login for:", email);
     try {
-      // In a real app, this would validate against a backend
-      // For demo, we'll simulate a successful login
-      
-      // Check if user exists in our "database"
-      const usersJson = await AsyncStorage.getItem('users');
-      const users = usersJson ? JSON.parse(usersJson) : [];
-      
-      const foundUser = users.find(u => 
-        u.email === email && 
-        u.password === password && 
-        u.role === role
-      );
-      
-      if (!foundUser) {
-        throw new Error('Invalid credentials');
-      }
-      
-      // Remove password from user object before storing in state
-      const { password: _, ...userWithoutPassword } = foundUser;
-      
-      setUser(userWithoutPassword);
-      await AsyncStorage.setItem('user', JSON.stringify(userWithoutPassword));
-      
-      return userWithoutPassword;
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log("[Login] Success. User UID:", userCredential.user.uid);
+      // onAuthStateChanged should handle the rest
+      return userCredential.user; 
     } catch (error) {
-      console.error('Login failed', error);
-      throw error;
+      console.error('[Login] Failed:', error.message, error.code);
+      throw error; // Rethrow for UI handling
     }
   };
 
   const signup = async (name, email, password, role) => {
+    console.log("[Signup] Attempting signup for:", email, " Name:", name, " Role:", role);
     try {
-      // In a real app, this would create a user in a backend
-      // For demo, we'll store in AsyncStorage
-      
-      // Check if user already exists
-      const usersJson = await AsyncStorage.getItem('users');
-      const users = usersJson ? JSON.parse(usersJson) : [];
-      
-      if (users.some(u => u.email === email)) {
-        throw new Error('User already exists');
-      }
-      
-      // Create new user
+      // 1. Create user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+      console.log("[Signup] Auth user created successfully. UID:", firebaseUser.uid);
+
+      // 2. Store additional user data in Firestore
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
       const newUser = {
-        id: Date.now().toString(),
-        name,
+        uid: firebaseUser.uid,
+        name, 
         email,
-        password,
         role,
         createdAt: new Date().toISOString(),
       };
       
-      // Add to users list
-      users.push(newUser);
-      await AsyncStorage.setItem('users', JSON.stringify(users));
+      console.log("[Signup] Attempting to save user data to Firestore path:", userDocRef.path);
+      console.log("[Signup] Data to save:", newUser);
       
-      // Remove password from user object before storing in state
-      const { password: _, ...userWithoutPassword } = newUser;
+      try {
+          await setDoc(userDocRef, newUser);
+          console.log("[Signup] Firestore user data SAVED successfully.");
+      } catch (firestoreError) {
+          console.error("[Signup] FAILED to save user data to Firestore:", firestoreError.message, firestoreError.code);
+          // Optionally: delete the auth user if firestore write fails? (complex recovery)
+          // await firebaseUser.delete(); 
+          // console.log("[Signup] Deleted Auth user due to Firestore failure.");
+          throw new Error("Failed to save user details after signup. " + firestoreError.message); // Throw specific error
+      }
       
-      setUser(userWithoutPassword);
-      await AsyncStorage.setItem('user', JSON.stringify(userWithoutPassword));
-      
-      return userWithoutPassword;
+      // 3. Manually set state immediately after successful signup + Firestore write
+      console.log("[Signup] Manually setting user state locally.");
+      setUser(firebaseUser);
+      setUserData(newUser);
+
+      return firebaseUser;
     } catch (error) {
-      console.error('Signup failed', error);
-      throw error;
+      // Catch errors from Auth creation OR the re-thrown Firestore error
+      console.error('[Signup] Failed:', error.message);
+      throw error; // Rethrow for UI handling
     }
   };
 
   const logout = async () => {
+    console.log("[Logout] Attempting Firebase signOut...");
     try {
-      await AsyncStorage.removeItem('user');
-      setUser(null);
+      await signOut(auth);
+      console.log("[Logout] Firebase signOut successful. onAuthStateChanged should handle state clearing.");
+      // State clearing (setUser(null), setUserData(null)) is now handled by onAuthStateChanged listener
     } catch (error) {
-      console.error('Logout failed', error);
+      console.error('[Logout] Firebase signOut failed:', error.message, error.code);
+      throw error; // Rethrow for profile screen handling
     }
   };
 
-  const updateProfile = async (updatedUser) => {
+  // UpdateProfile remains the same as the previous version with logging
+
+  const updateProfile = async (updatedData) => {
+    if (!user) {
+        console.log("[UpdateProfile] User not logged in, skipping.");
+        return; 
+    }
+
     try {
-      // Update in state
-      setUser(updatedUser);
+      const userDocRef = doc(db, 'users', user.uid);
+      console.log("[UpdateProfile] Attempting to update Firestore path:", userDocRef.path);
+      console.log("[UpdateProfile] Data to merge:", updatedData);
       
-      // Update in AsyncStorage
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      await setDoc(userDocRef, updatedData, { merge: true }); 
       
-      // Update in users list
-      const usersJson = await AsyncStorage.getItem('users');
-      if (usersJson) {
-        const users = JSON.parse(usersJson);
-        const updatedUsers = users.map(u => 
-          u.id === updatedUser.id ? { ...u, ...updatedUser } : u
-        );
-        await AsyncStorage.setItem('users', JSON.stringify(updatedUsers));
-      }
+      console.log("[UpdateProfile] Firestore update successful. Updating local state...");
+      setUserData(prevData => {
+          const newData = { ...prevData, ...updatedData };
+          console.log("[UpdateProfile] New local userData:", newData);
+          return newData;
+      });
+
     } catch (error) {
-      console.error('Profile update failed', error);
+      console.error('[UpdateProfile] Failed to update Firestore:', error.message, error.code);
+      throw error;
     }
   };
+  
+  // Combine Firebase user and Firestore data for consumers
+  const combinedUser = user ? { ...user, ...userData } : null; 
+
+  // Add a log to see when the context value changes
+  // console.log("[AuthProvider] Rendering with isLoading:", isLoading, "Combined User:", combinedUser);
 
   return (
     <AuthContext.Provider value={{ 
-      user, 
+      user: combinedUser, 
       isLoading,
       login,
       signup,
       logout,
-      updateProfile
+      updateProfile 
     }}>
       {children}
     </AuthContext.Provider>
