@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is a teacher
+    function isTeacher() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    // Helper function to check if user is a student
+    function isStudent() {
+      return request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'student';
+    }
+
+    // Helper function to get user role
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // Users collection rules
+    match /users/{userId} {
+      // Allow users to read and write their own document
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow teachers to read all user documents
+      allow read: if isTeacher();
+      
+      // Allow students to read teacher documents
+      allow read: if isStudent() && 
+                  resource.data.role == 'teacher';
+      
+      // Allow teachers to create new student documents
+      allow create: if isTeacher() && 
+        request.resource.data.role == 'student' &&
+        request.resource.data.teacherId == request.auth.uid;
+      
+      // Allow teachers to update student documents they created
+      allow update: if isTeacher() && 
+        resource.data.teacherId == request.auth.uid &&
+        request.resource.data.teacherId == request.auth.uid;
+    }
+
+    // Attendance collection rules
+    match /attendance/{recordId} {
+      // Allow teachers to create attendance records
+      allow create: if isTeacher() && 
+        request.resource.data.teacherId == request.auth.uid;
+      
+      // Allow teachers to read and update their own attendance records
+      allow read, update, delete: if isTeacher() && 
+        resource.data.teacherId == request.auth.uid;
+      
+      // Allow students to read all attendance records
+      // This is a temporary less restrictive rule for troubleshooting
+      allow read: if isStudent();
+    }
+    
+    // Individual student attendance records
+    match /studentAttendance/{recordId} {
+      // Allow teachers to create and manage student attendance records
+      allow create, update, delete: if isTeacher() && 
+        request.resource.data.teacherId == request.auth.uid;
+      
+      // Allow teachers to read all student attendance records they created
+      allow read: if isTeacher() && 
+        resource.data.teacherId == request.auth.uid;
+      
+      // Allow students to read their own attendance records
+      allow read: if isStudent() && 
+        resource.data.studentId == request.auth.uid;
+    }
+  }
+} 
