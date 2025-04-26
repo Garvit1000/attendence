@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, FlatList, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, FlatList, ActivityIndicator } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { Check, X } from 'lucide-react-native';
 import CameraView from './CameraView';
@@ -237,7 +237,7 @@ export default function TakeAttendance({ onSuccess }) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Text style={styles.title}>Take Attendance</Text>
       
       {photoUri ? (
@@ -279,11 +279,12 @@ export default function TakeAttendance({ onSuccess }) {
             Recognized Students ({recognizedStudents.length})
           </Text>
           
-          <FlatList
-            data={recognizedStudents}
-            keyExtractor={(item) => (item.id || item.studentId || `temp-${Math.random()}`).toString()}
-            renderItem={({ item }) => (
-              <View style={styles.studentItem}>
+          <View style={styles.studentsList}>
+            {recognizedStudents.map((item) => (
+              <View
+                key={(item.id || item.studentId || `temp-${Math.random()}`).toString()}
+                style={styles.studentItem}
+              >
                 <View style={styles.studentInfo}>
                   <Text style={styles.studentName}>{item.name}</Text>
                   <Text style={styles.studentId}>ID: {item.studentId}</Text>
@@ -292,9 +293,8 @@ export default function TakeAttendance({ onSuccess }) {
                   {Math.round(item.confidence * 100)}%
                 </Text>
               </View>
-            )}
-            style={styles.studentsList}
-          />
+            ))}
+          </View>
           
           <TouchableOpacity
             style={styles.saveButton}
@@ -313,15 +313,15 @@ export default function TakeAttendance({ onSuccess }) {
           </Text>
         </View>
       ) : null}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: '#FFFFFF',
-    padding: 20,
+    padding: 16,
+    borderRadius: 16,
   },
   title: {
     fontSize: 24,
