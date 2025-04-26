@@ -2,13 +2,18 @@ import { View, StyleSheet } from 'react-native';
 import { Stack, Redirect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import BottomBar from '@/components/BottomBar';
+import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton';
 
 export default function AppLayout() {
   const { user, isLoading } = useAuth();
   
-  // Show blank view while loading to prevent flashing
+  // Show skeleton while loading
   if (isLoading) {
-    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
+    return (
+      <View style={styles.container}>
+        <DashboardSkeleton />
+      </View>
+    );
   }
   
   // If no user and not loading, redirect to auth
@@ -38,6 +43,18 @@ export default function AppLayout() {
           name="index"
           options={{
             headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="register-student"
+          options={{
+            title: 'Register Student',
+          }}
+        />
+        <Stack.Screen
+          name="take-attendance"
+          options={{
+            title: 'Take Attendance',
           }}
         />
         <Stack.Screen

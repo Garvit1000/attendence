@@ -5,7 +5,10 @@
   "scripts": {
     "start": "expo start --tunnel",
     "start-web": "expo start --web --tunnel",
-    "start-web-dev": "DEBUG=expo* expo start --web --tunnel"
+    "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
+    "build:android": "eas build --platform android --profile production",
+    "build:android:dev": "eas build --platform android --profile development",
+    "build:android:preview": "eas build --platform android --profile preview"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.2",
@@ -48,7 +51,8 @@
     "@babel/core": "^7.25.2",
     "@expo/ngrok": "^4.1.0",
     "@types/react": "~18.3.12",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "dotenv": "^16.4.5"
   },
   "private": true
 }

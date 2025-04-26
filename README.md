@@ -1,85 +1,100 @@
-# Attendance Management System with Gemini AI Integration
+# Attendance System with Face Recognition
 
-This project is an attendance management system that uses Google's Gemini AI for face detection and recognition instead of traditional face recognition libraries.
-
-## Why Gemini AI?
-
-The traditional face recognition libraries like `dlib` and `face_recognition` have compatibility issues with Python 3.12. Instead of downgrading Python, we've integrated Google's Gemini AI, which provides powerful computer vision capabilities through its API.
-
-## Setup
-
-### Backend
-
-The backend is built with Flask and provides APIs for storing and retrieving attendance records. It uses MongoDB for data storage.
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
-```
-
-### Frontend
-
-The frontend is built with React Native and Expo. It integrates with Gemini AI for face recognition.
-
-```bash
-cd frontend
-npm install
-```
-
-### Gemini API Setup
-
-1. Get a Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-2. Add your API key to `frontend/.env`:
-   ```
-   EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
-   ```
-
-## Running the Application
-
-### Backend
-```bash
-cd backend
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-python app.py
-```
-
-### Frontend
-```bash
-cd frontend
-npx expo start
-```
+This application uses facial recognition to automate classroom attendance. Teachers take a photo of the class, and the system automatically identifies students and marks them present.
 
 ## Features
 
-- **Student Registration**: Register students with their names, IDs, and facial images
-- **Face Detection**: Validate that uploaded photos contain valid faces using Gemini AI
-- **Attendance Taking**: Take classroom photos and use Gemini AI to recognize students
-- **Attendance Records**: View and manage attendance records
+- User authentication for teachers and students
+- Student registration with facial recognition
+- Automated attendance tracking using facial recognition
+- Attendance reports and history
+- Mobile-friendly UI
 
-## How It Works
+## Tech Stack
 
-1. **Face Validation**: When registering a student, the system uses Gemini AI to validate that the photo contains a clear face.
-2. **Student Recognition**: When taking attendance, the system captures a photo of the classroom and sends it to Gemini AI, which identifies students based on their registered faces.
-3. **Attendance Records**: The system records attendance data and provides reports.
+### Frontend
+- React Native / Expo
+- Expo Camera for photo capture
+- Firebase Authentication
+- Axios for API requests
 
-## Architecture
+### Backend
+- Python Flask API
+- OpenCV and face_recognition library for facial detection and recognition
+- MongoDB for storing student data and attendance records
 
-The system has a dual architecture:
-- **Backend API**: Flask server that handles data storage and retrieval using MongoDB
-- **Frontend AI Processing**: React Native application that integrates with Gemini AI for face detection and recognition
+## Setup Instructions
 
-## Limitations
+### Prerequisites
+- Node.js and npm
+- Python 3.8+ with pip
+- MongoDB
+- Firebase account
 
-- The accuracy of face recognition depends on the quality of Gemini's vision capabilities
-- Need to maintain an active internet connection for AI processing
-- Requires a valid Gemini API key with sufficient quota
+### Frontend Setup
 
-## Future Improvements
+1. Clone the repository
+```
+git clone https://github.com/yourusername/attendance-system.git
+cd attendance-system
+```
 
-- Implement more sophisticated prompts for Gemini to improve recognition accuracy
-- Add face embedding storage for better comparison
-- Implement batch processing for large classrooms
-- Add offline fallback mechanisms 
+2. Install dependencies
+```
+npm install
+```
+
+3. Create a Firebase project and update the Firebase configuration in `config/firebase.js`
+
+4. Update the API URL in the following files to point to your backend server:
+   - `app/(app)/teacher/take-attendance.jsx`
+   - `app/(app)/teacher/register-student.jsx`
+
+5. Start the development server
+```
+npm start
+```
+
+### Backend Setup
+
+1. Navigate to the backend directory
+```
+cd backend
+```
+
+2. Create a virtual environment
+```
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies
+```
+pip install -r requirements.txt
+```
+
+4. Create a `.env` file based on the provided example
+
+5. Start the Flask server
+```
+flask run
+```
+
+## Usage
+
+1. Teachers create accounts and log in
+2. Register students with their photos
+3. Take class photos to automatically mark attendance
+4. View attendance reports
+
+## Face Recognition Process
+
+1. **Student Registration**: Each student's face is captured and stored as encodings
+2. **Attendance Taking**: Teachers capture a photo of the class
+3. **Face Detection**: OpenCV detects faces in the image
+4. **Face Recognition**: System compares detected faces with registered students
+5. **Attendance Marking**: Students with matching faces are marked present
+
+## License
+
+MIT 

@@ -2,20 +2,20 @@ import { View, Animated, StyleSheet } from 'react-native';
 import { useEffect, useRef } from 'react';
 
 export default function Skeleton({ width, height, style }) {
-  const opacity = useRef(new Animated.Value(0.3)).current;
+  const animatedValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 0.7,
-          duration: 800,
-          useNativeDriver: true,
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: false,
         }),
-        Animated.timing(opacity, {
-          toValue: 0.3,
-          duration: 800,
-          useNativeDriver: true,
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: false,
         }),
       ])
     );
@@ -23,7 +23,12 @@ export default function Skeleton({ width, height, style }) {
     animation.start();
 
     return () => animation.stop();
-  }, [opacity]);
+  }, [animatedValue]);
+
+  const backgroundColor = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#E5E7EB', '#F3F4F6']
+  });
 
   return (
     <Animated.View
@@ -32,7 +37,7 @@ export default function Skeleton({ width, height, style }) {
         {
           width,
           height,
-          opacity,
+          backgroundColor,
         },
         style,
       ]}
@@ -42,7 +47,6 @@ export default function Skeleton({ width, height, style }) {
 
 const styles = StyleSheet.create({
   skeleton: {
-    backgroundColor: '#E5E7EB',
     borderRadius: 4,
     overflow: 'hidden',
   },

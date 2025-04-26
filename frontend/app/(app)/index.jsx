@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user } = useAuth();
   const { 
     attendanceRecords, 
     students,
@@ -16,9 +16,7 @@ export default function DashboardScreen() {
     isLoadingStudents 
   } = useAttendance();
 
-  const isLoading = authLoading || isLoadingRecords || isLoadingStudents;
-
-  if (isLoading) {
+  if (isLoadingRecords || isLoadingStudents) {
     return <DashboardSkeleton />;
   }
 
@@ -33,8 +31,7 @@ export default function DashboardScreen() {
   // Calculate statistics
   const totalStudents = students.length;
   const totalSessions = attendanceRecords.length;
-  const recentRecords = attendanceRecords.slice(0, 5); // Last 5 records
-
+  
   const today = new Date();
   const todayRecords = attendanceRecords.filter(record => {
     const recordDate = new Date(record.date);
@@ -44,6 +41,8 @@ export default function DashboardScreen() {
       recordDate.getFullYear() === today.getFullYear()
     );
   });
+
+  const recentRecords = attendanceRecords.slice(0, 5); // Last 5 records
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -155,7 +154,7 @@ export default function DashboardScreen() {
 
         {recentRecords.length > 0 ? (
           recentRecords.map((record, index) => (
-            <View key={record.id} style={styles.activityItem}>
+            <View key={record.id || index} style={styles.activityItem}>
               <View style={[styles.activityIcon, { backgroundColor: '#EFF6FF' }]}>
                 <UserRound size={20} color="#5271FF" />
               </View>
